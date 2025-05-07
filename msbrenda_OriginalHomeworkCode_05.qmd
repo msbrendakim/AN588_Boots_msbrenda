@@ -1,0 +1,171 @@
+---
+title: "BUlogin_OriginalHomeworkCode_05"
+format: html
+editor: visual
+---
+
+## Library
+
+```{r}
+library(tidyverse)
+library(curl)
+```
+
+## Load Dataset
+
+```{r}
+# Load Kamilar and Cooper dataset
+c <- curl("https://raw.githubusercontent.com/fuzzyatelin/fuzzyatelin.github.io/refs/heads/master/AN588_Spring25/KamilarAndCooperData.csv")
+data <- read.csv(c, header = TRUE, sep = ",", stringsAsFactors = FALSE)
+
+# Data preparation for further steps
+data$logHR <- log(data$HomeRange_km2)
+data$logBM <- log(data$Body_mass_female_mean)
+```
+
+## Bootstrapping Standard Errors and CIs for Linear Models.
+
+#### Linear Regression
+
+```{r}
+# Fit linear model: log(HomeRange_km2) ~ log(Body_mass_female_mean)
+model <- lm(logHR ~ logBM, data = data) 
+
+# Report beta coefficients
+coef(model)
+```
+
+#### Bootstrapping
+
+```{r}
+# Bootstrap function for beta coefficients
+bootstrap_betas <- function(data, n = 1000) {
+  betas <- matrix(NA, nrow = n, ncol = 2)
+  for (i in 1:n) {
+    boot_data <- data[sample(nrow(data), replace = TRUE), ]
+    boot_model <- lm(logHR ~ logBM, data = boot_data)
+    betas[i, ] <- coef(boot_model)
+  }
+  colnames(betas) <- c("Intercept", "Slope")
+  return(betas)
+}
+
+# Run bootstrap (1000 replicates)
+set.seed(123)
+boot_betas <- bootstrap_betas(data)
+
+# Standard errors (SD of bootstrap betas)
+se_boot <- apply(boot_betas, 2, sd)
+
+# 95% CI (quantiles)
+ci_boot <- apply(boot_betas, 2, quantile, probs = c(0.025, 0.975))
+
+# Compare with lm() estimates
+se_lm <- summary(model)$coefficients[, "Std. Error"]
+ci_lm <- confint(model, level = 0.95)
+
+# Results
+tibble(
+  Coefficient = c("Intercept", "Slope"),
+  Boot_SE = se_boot,
+  LM_SE = se_lm,
+  Boot_CI_Lower = ci_boot[1, ],
+  Boot_CI_Upper = ci_boot[2, ],
+  LM_CI_Lower = ci_lm[, 1],
+  LM_CI_Upper = ci_lm[, 2]
+)
+```
+
+1.  Bootstrap SE and 95% CI for β Coefficients:
+    -   Intercept:
+        -   SE: 0.603
+        -   95% CI: \[-10.7, -8.32\]
+    -   Slope:
+        -   SE: 0.0785
+        -   95% CI: \[0.890, 1.19\]
+2.  Comparison of Bootstrap SE to `ㅣm()` SE:
+    -   Intercept: Bootstrap SE (0.603) is slightly lower than `lm()` SE (0.673), suggesting bootstrap captures less variability, maybe due to sample size.
+    -   Slope: Bootstrap SE (0.0785) is slightly lower than `lm()` SE (0.0849), suggesting similar estimates but with bootstrap being less sensitive to model assumptions.
+3.  Comparison of Bootstrap 95% CI to `lm()` 95% CI:
+    -   Intercept: Bootstrap CI \[-10.7, -8.32\] is very close to `lm()` CI \[-10.8, -8.11\], with minor differences due to quantile-based estimation vs. t-distribution.
+    -   Slope: Bootstrap CI \[0.890, 1.19\] is nearly identical to `lm()` CI \[0.869, 1.20\], confirming robustness of both methods, though bootstrap CI is slightly narrower.
+
+#### Extracredit: Bootstrap Functoin
+
+```{r}
+bootstrap_lm <- function(d, m, conf.level = 0.95, n = 1000) {
+  # Parse model formula
+  formula <- as.formula(m)
+  
+  # Fit model on full data
+  model <- lm(formula, data = d)
+  beta_lm <- coef(model)
+  se_lm <- summary(model)$coefficients[, "Std. Error"]
+  ci_lm <- confint(model, level = conf.level)
+  
+  # Bootstrap
+  betas <- matrix(NA, nrow = n, ncol = length(beta_lm))
+  for (i in 1:n) {
+    boot_d <- d[sample(nrow(d), replace = TRUE), ]
+    boot_model <- lm(formula, data = boot_d)
+    betas[i, ] <- coef(boot_model)
+  }
+  
+  # Bootstrap estimates
+  beta_boot <- apply(betas, 2, mean)
+  se_boot <- apply(betas, 2, sd)
+  ci_boot <- apply(betas, 2, quantile, probs = c((1 - conf.level) / 2, (1 + conf.level) / 2))
+  
+  # Return dataframe
+  tibble(
+    Coefficient = names(beta_lm),
+    LM_Beta = beta_lm,
+    LM_SE = se_lm,
+    LM_CI_Lower = ci_lm[, 1],
+    LM_CI_Upper = ci_lm[, 2],
+    Boot_Beta = beta_boot,
+    Boot_SE = se_boot,
+    Boot_CI_Lower = ci_boot[1, ],
+    Boot_CI_Upper = ci_boot[2, ]
+  )
+}
+
+# Test function
+bootstrap_lm(data, "logHR ~ logBM")
+```
+
+#### Extracredit: Bootstrap Convergence Plot
+
+```{r}
+# Bootstrap across varying replicates
+n_reps <- seq(10, 200, by = 10)
+results <- lapply(n_reps, function(n) {
+  betas <- bootstrap_betas(data, n)
+  tibble(
+    N = n,
+    Intercept_Mean = mean(betas[, "Intercept"]),
+    Intercept_SE = sd(betas[, "Intercept"]),
+    Intercept_CI_Lower = quantile(betas[, "Intercept"], 0.025),
+    Intercept_CI_Upper = quantile(betas[, "Intercept"], 0.975),
+    Slope_Mean = mean(betas[, "Slope"]),
+    Slope_SE = sd(betas[, "Slope"]),
+    Slope_CI_Lower = quantile(betas[, "Slope"], 0.025),
+    Slope_CI_Upper = quantile(betas[, "Slope"], 0.975)
+  )
+}) %>% bind_rows()
+
+# Plot
+ggplot(results) +
+  geom_line(aes(x = N, y = Intercept_Mean), color = "blue") +
+  geom_ribbon(aes(x = N, ymin = Intercept_CI_Lower, ymax = Intercept_CI_Upper), alpha = 0.2, fill = "blue") +
+  geom_hline(yintercept = coef(model)[1], linetype = "dashed", color = "black") +
+  labs(x = "Number of Bootstraps", y = "Intercept Estimate", title = "Intercept: Bootstrap Convergence") +
+  theme_minimal()
+
+ggplot(results) +
+  geom_line(aes(x = N, y = Slope_Mean), color = "red") +
+  geom_ribbon(aes(x = N, ymin = Slope_CI_Lower, ymax = Slope_CI_Upper), alpha = 0.2, fill = "red") +
+  geom_hline(yintercept = coef(model)[2], linetype = "dashed", color = "black") +
+  labs(x = "Number of Bootstraps", y = "Slope Estimate", title = "Slope: Bootstrap Convergence") +
+  theme_minimal()
+```
