@@ -1,0 +1,12 @@
+1. What I learned from running your Original Homework Code that helped improve my own code:
+Running your code helped clarify the logic and structure of bootstrapping in a clean and modular way. I especially appreciated how you created reusable functions (bootstrap_betas and bootstrap_lm) for comparing bootstrap-derived estimates to lm() results. The convergence plots were a standout—seeing how coefficient estimates stabilize across increasing bootstrap replicates gave me a much better intuition for when enough resampling has been done.
+
+2. What I did in my own code that might help to improve yours:
+In my code, I added ggplot-based histograms of the bootstrap distributions to visually confirm the spread and symmetry of the estimates. Including those in your assignment might make the statistical interpretation even more intuitive, especially when comparing standard errors and confidence intervals. I also used pivot_longer() in my summary tables for better formatting when plotting CI ranges across coefficients.
+
+3. What challenges, if any, we both faced in our code that could not be helped by comparison:
+We both had to carefully match the model formula and bootstrapped coefficients, and I also ran into difficulty maintaining consistent column names when wrapping bootstrap output in data frames. These issues are more related to R’s syntax quirks than to differences in strategy, so our respective approaches couldn’t fully resolve them—but seeing your neat matrix() approach helped me simplify my loops.
+
+4. Whether the annotation/commenting on your Original Homework Code is readable and interpretable to you, and if not then how it could be improved:
+Your code is well-commented and broken into clearly labeled sections, which made it easy to follow. The comments in the extra credit section were especially helpful in explaining the generalization of the bootstrap workflow. If I could suggest one improvement, it would be to briefly explain what each output table means before printing it—especially in the comparison section—so that readers not familiar with bootstrap vs. parametric SEs can better grasp the takeaway.
+
